@@ -1,18 +1,13 @@
 package eventlistener
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type EventListenerOptions struct {
-	URL         string
-	Client      *ethclient.Client
-	ContractMap map[string]Contract // address -> Contract
-
-	FromBlock *big.Int
-	ToBlock   *big.Int
+	URL      string
+	Client   *ethclient.Client
+	Contract *Contract // address -> Contract
 }
 
 type Option func(*EventListenerOptions)
@@ -31,25 +26,6 @@ func WithClient(client *ethclient.Client) Option {
 
 func WithContract(c Contract) Option {
 	return func(opts *EventListenerOptions) {
-		_, found := opts.ContractMap[c.Address]
-		if !found {
-			opts.ContractMap[c.Address] = c
-		}
-	}
-}
-
-func WtihFromBlock(fromBlock *big.Int) Option {
-	return func(o *EventListenerOptions) {
-		if fromBlock != nil {
-			o.FromBlock = fromBlock
-		}
-	}
-}
-
-func WithToBlock(toBlock *big.Int) Option {
-	return func(o *EventListenerOptions) {
-		if toBlock != nil {
-			o.ToBlock = toBlock
-		}
+		opts.Contract = &c
 	}
 }

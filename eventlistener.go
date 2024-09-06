@@ -4,30 +4,31 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/go-errors/errors"
 )
 
 type EventListener struct {
 	client *ethclient.Client
 
-	Config          ChainConfig
-	ContractMap     map[string]Contract
-	subscriptionMap map[string]ethereum.Subscription
-	logChanMap      map[string]chan types.Log
+	Config   ChainConfig
+	Contract *Contract
+	logChan  chan types.Log
 
 	opts *EventListenerOptions
 }
 
 func New(c ChainConfig, options ...Option) (*EventListener, error) {
-	opts := &EventListenerOptions{ContractMap: make(map[string]Contract)}
+	opts := &EventListenerOptions{}
 	for _, option := range options {
 		option(opts)
 	}
@@ -46,89 +47,108 @@ func New(c ChainConfig, options ...Option) (*EventListener, error) {
 		return nil, fmt.Errorf("either URL or ethclient.Client must be provided")
 	}
 
-	return &EventListener{
-		Config:      c,
-		client:      client,
-		logChanMap:  make(map[string]chan types.Log),
-		ContractMap: opts.ContractMap,
-		opts:        opts,
-	}, nil
+	el := &EventListener{
+		Config:  c,
+		client:  client,
+		logChan: make(chan types.Log, 256),
+		opts:    opts,
+	}
+
+	if opts.Contract != nil {
+		el.Contract = opts.Contract
+	}
+	if el.Contract == nil {
+		return nil, errors.New("invali Contract")
+	}
+
+	return el, nil
 }
 
 func (el *EventListener) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	for address, contract := range el.ContractMap {
-		// log.Printf("address=%+v, contract=%+v\n", address, contract)
+	go func() {
 		query := ethereum.FilterQuery{
-			Addresses: []common.Address{common.HexToAddress(address)},
+			Addresses: []common.Address{common.HexToAddress(el.Contract.Address)},
 		}
+		ticker := time.NewTicker(time.Second * 3)
+		for {
+			select {
+			case <-ticker.C:
+				toBlock := big.NewInt(0).Add(el.Contract.BlockNumber, el.Contract.Step)
+				query.FromBlock = el.Contract.BlockNumber
+				query.ToBlock = toBlock
 
-		logChan := make(chan types.Log, 1024)
-		sub, err := el.client.SubscribeFilterLogs(ctx, query, logChan)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to subscribe to logs: %v", err))
-		}
-		el.logChanMap[address] = logChan
-		el.subscriptionMap[address] = sub
+				logList, err := el.client.FilterLogs(ctx, query)
+				if err != nil {
+					log.Printf("Failed to query logs: %v", err)
+					continue
+				}
 
-		wg.Add(1)
-		go func(contract Contract) {
-			defer wg.Done()
-			for {
-				select {
-				case err := <-sub.Err():
-					log.Printf("Subscription error: %v\n", err)
-				case vLog := <-logChan:
+				for _, vLog := range logList {
 					eventSig := vLog.Topics[0]
-					eventData, ok := contract.EventMap[eventSig]
-					if !ok {
-						log.Printf("Unknown event signature: %s", eventSig.Hex())
-						continue
-					}
+					el.Contract.Abi.EventByID(eventSig)
 
-					fmt.Printf("Event: %s\n", eventData.Name)
-
-					eventDataValues, err := contract.Abi.Unpack(eventData.Name, vLog.Data)
+					event, err := el.Contract.Abi.EventByID(vLog.Topics[0])
 					if err != nil {
-						log.Printf("Failed to unpack log data: %v", err)
+						log.Println(err, "get event fail")
 						continue
 					}
 
-					for i, input := range eventData.Inputs {
-						if input.Indexed {
-							fmt.Printf("%s: %s\n", input.Name, common.HexToAddress(vLog.Topics[i+1].Hex()).Hex())
-						} else {
-							fmt.Printf("%s: %v\n", input.Name, eventDataValues[i])
+					eventInfo := &Event{
+						Name:          event.Name,
+						IndexedParams: make([]common.Hash, len(vLog.Topics)-1),
+						Data:          vLog.Data,
+						Outputs:       nil,
+					}
+					fmt.Printf("event: %+v\n", event)
+					// fmt.Printf("eventInfo: %+v\n", eventInfo)
+
+					// topic[1:] is other indexed params in event
+					if len(vLog.Topics) > 1 {
+						for i, param := range vLog.Topics[1:] {
+							// fmt.Printf("Indexed params %d in hex: %s\n", i, param)
+							// fmt.Printf("Indexed params %d decoded %s\n", i, common.HexToAddress(param.Hex()))
+							fmt.Printf("%s = %s\n", event.Inputs[i].Name, common.HexToAddress(param.Hex()))
+							eventInfo.IndexedParams[i] = param
 						}
 					}
+					if len(vLog.Data) > 0 {
+						//fmt.Printf("Log Data in Hex: %s\n", hex.EncodeToString(vLog.Data))
+						outputDataMap := make(map[string]interface{})
+						err = el.Contract.Abi.UnpackIntoMap(outputDataMap, event.Name, vLog.Data)
+						if err != nil {
+							log.Println(err, "uppack fail")
+							continue
+						}
+						//fmt.Printf("Event outputs: %v\n", outputDataMap)
+						eventInfo.Outputs = outputDataMap
+						for k, v := range outputDataMap {
+							fmt.Println(k, v)
+						}
+					}
+
+					// fmt.Printf("eventInfo: %+v\n", eventInfo)
+
 					log.Printf(
-						"chainName=%s contractName=%s contractAddress=%s block number=%v, done\n",
-						el.Config.ChainName, contract.Name, contract.Address, vLog.BlockNumber,
+						"chainName=%s contractName=%s contractAddress=%s block number=%v, done\n\n",
+						el.Config.ChainName, el.Contract.Name, el.Contract.Address, vLog.BlockNumber,
 					)
 				}
 			}
-		}(contract)
-	}
+		}
+	}()
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-signalChan
-		log.Println("received shutdown signal")
-		cancel()
-		el.Stop()
-	}()
 
-	wg.Wait()
+	<-signalChan
+	log.Println("received shutdown signal")
+	cancel()
+	el.Stop()
+
 	log.Println("All goroutines have finished, exiting main function")
 }
 
 func (el *EventListener) Stop() {
-	for _, sub := range el.subscriptionMap {
-		sub.Unsubscribe()
-	}
-	for _, ch := range el.logChanMap {
-		close(ch)
-	}
+
 }

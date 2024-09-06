@@ -1,6 +1,7 @@
 package eventlistener
 
 import (
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -18,9 +19,12 @@ type Contract struct {
 	Address  string
 	Abi      abi.ABI
 	EventMap map[common.Hash]*EventData
+
+	BlockNumber *big.Int
+	Step        *big.Int
 }
 
-func NewContract(address string, abiStr string) (*Contract, error) {
+func NewContract(address string, abiStr string, blockNumber, step *big.Int) (*Contract, error) {
 	parsedABI, err := abi.JSON(strings.NewReader(abiStr))
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to parse contract ABI")
@@ -35,8 +39,10 @@ func NewContract(address string, abiStr string) (*Contract, error) {
 	}
 
 	return &Contract{
-		Address:  address,
-		Abi:      parsedABI,
-		EventMap: eventMap,
+		Address:     address,
+		Abi:         parsedABI,
+		EventMap:    eventMap,
+		BlockNumber: blockNumber,
+		Step:        step,
 	}, nil
 }
