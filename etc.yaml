@@ -1,0 +1,10 @@
+ChainConfig:
+  - chainName: "ethereum-mainnet"
+    chainId: 1
+    url: ""
+  - chainName: "ethereum-sepolia"
+    chainId: 11155111
+    url: ""
+
+
+
