@@ -7,7 +7,7 @@ import (
 type EventListenerOptions struct {
 	URL      string
 	Client   *ethclient.Client
-	Contract *Contract // address -> Contract
+	Contract *Contract
 }
 
 type Option func(*EventListenerOptions)

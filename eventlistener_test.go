@@ -1,13 +1,50 @@
 package eventlistener
 
 import (
+	"context"
+	"log/slog"
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/pkg/errors"
+	"github.com/x1rh/event-listener/logger"
 )
 
-func TestEventListen(t *testing.T) {
+// LogTokenCreated signature: TokenCreated(address,address,uint8,uint96,uint256)
+type LogTokenCreated struct {
+	Owner        common.Address // token owner
+	Token        common.Address // token address
+	TokenType    uint8
+	TokenVersion *big.Int
+	Level        *big.Int
+}
+
+type AppCtx struct {
+	// db connection
+}
+
+func logHandler(appctx *AppCtx, c *Contract) LogHandleFunc {
+	return func(ctx context.Context, event *Event) error {
+		switch event.Name {
+		case "TokenCreated":
+			var l LogTokenCreated
+			if err := c.Abi.UnpackIntoInterface(&l, event.Name, event.Data); err != nil {
+				return errors.Wrap(err, "fail to unpack log")
+			}
+			// handle indexed topic
+			l.Owner = HashToAddress(event.IndexedParams[0])
+			l.Token = HashToAddress(event.IndexedParams[1])
+			slog.Info("TokenCreated event", slog.Any("event", l))
+		default:
+			// do nothing
+		}
+		return nil
+	}
+}
+
+func NewTokenFactoryEventListener() (*EventListener, error) {
 	c := ChainConfig{
 		ChainId:   11155111,
 		ChainName: "ethereum-sepolia",
@@ -27,6 +64,7 @@ func TestEventListen(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	tokenFactory.SetLogHandler(logHandler(&AppCtx{}, tokenFactory))
 
 	el, err := New(
 		c,
@@ -34,8 +72,17 @@ func TestEventListen(t *testing.T) {
 		WithContract(*tokenFactory),
 	)
 	if err != nil {
-		t.Fatal(err)
+		return nil, errors.Wrap(err, "fail to new an EventListener object")
 	}
 
+	return el, nil
+}
+
+func TestEventListen(t *testing.T) {
+	logger.Init(slog.LevelInfo, false)
+	el, err := NewTokenFactoryEventListener()
+	if err != nil {
+		t.Fatal(err)
+	}
 	el.Start()
 }

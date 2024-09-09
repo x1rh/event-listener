@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"math/big"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	_ "github.com/x1rh/event-listener/logger"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -74,23 +77,30 @@ func (el *EventListener) Start() {
 		for {
 			select {
 			case <-ticker.C:
+				// todo: check if it filters in interval [FromBlock, ToBlock] or [FromBlock, ToBlock)
 				toBlock := big.NewInt(0).Add(el.Contract.BlockNumber, el.Contract.Step)
 				query.FromBlock = el.Contract.BlockNumber
 				query.ToBlock = toBlock
+				slog.Info("handle block", slog.Any("fromBlock", query.FromBlock), slog.Any("toBlock", query.ToBlock))
 
 				logList, err := el.client.FilterLogs(ctx, query)
 				if err != nil {
-					log.Printf("Failed to query logs: %v", err)
+					slog.Error(
+						"Failed to query logs",
+						"error", err,
+					)
 					continue
 				}
 
 				for _, vLog := range logList {
+					// TODO: only handle topic
+					// topic[0] is always a signature when a event is topic
 					eventSig := vLog.Topics[0]
 					el.Contract.Abi.EventByID(eventSig)
 
 					event, err := el.Contract.Abi.EventByID(vLog.Topics[0])
 					if err != nil {
-						log.Println(err, "get event fail")
+						slog.Error("fail to get even", slog.Any("err", err))
 						continue
 					}
 
@@ -100,40 +110,39 @@ func (el *EventListener) Start() {
 						Data:          vLog.Data,
 						Outputs:       nil,
 					}
-					fmt.Printf("event: %+v\n", event)
-					// fmt.Printf("eventInfo: %+v\n", eventInfo)
+					slog.Debug("event", slog.Any("event", event))
 
 					// topic[1:] is other indexed params in event
 					if len(vLog.Topics) > 1 {
 						for i, param := range vLog.Topics[1:] {
-							// fmt.Printf("Indexed params %d in hex: %s\n", i, param)
-							// fmt.Printf("Indexed params %d decoded %s\n", i, common.HexToAddress(param.Hex()))
-							fmt.Printf("%s = %s\n", event.Inputs[i].Name, common.HexToAddress(param.Hex()))
 							eventInfo.IndexedParams[i] = param
+							slog.Debug("", event.Inputs[i].Name, common.HexToAddress(param.Hex()))
 						}
 					}
 					if len(vLog.Data) > 0 {
-						//fmt.Printf("Log Data in Hex: %s\n", hex.EncodeToString(vLog.Data))
 						outputDataMap := make(map[string]interface{})
 						err = el.Contract.Abi.UnpackIntoMap(outputDataMap, event.Name, vLog.Data)
 						if err != nil {
-							log.Println(err, "uppack fail")
+							slog.Error("fail to unpack", slog.Any("err", err))
 							continue
 						}
-						//fmt.Printf("Event outputs: %v\n", outputDataMap)
 						eventInfo.Outputs = outputDataMap
-						for k, v := range outputDataMap {
-							fmt.Println(k, v)
-						}
 					}
 
-					// fmt.Printf("eventInfo: %+v\n", eventInfo)
-
-					log.Printf(
-						"chainName=%s contractName=%s contractAddress=%s block number=%v, done\n\n",
-						el.Config.ChainName, el.Contract.Name, el.Contract.Address, vLog.BlockNumber,
+					slog.Debug(
+						"hanle",
+						slog.String("chainName", el.Config.ChainName),
+						slog.String("contractName", el.Contract.Name),
+						slog.String("ContractAddress", el.Contract.Address),
+						slog.Any("block number", vLog.BlockNumber),
 					)
+
+					if err := el.Contract.Handle(ctx, eventInfo); err != nil {
+						slog.Error("fail to handle event", slog.Any("err", err))
+						continue
+					}
 				}
+				el.Contract.BlockNumber = toBlock // todo: check it
 			}
 		}
 	}()
