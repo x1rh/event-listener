@@ -109,6 +109,7 @@ func (el *EventListener) Start() {
 						IndexedParams: make([]common.Hash, len(vLog.Topics)-1),
 						Data:          vLog.Data,
 						Outputs:       nil,
+						BlockNumber:   vLog.BlockNumber,
 					}
 					slog.Debug("event", slog.Any("event", event))
 

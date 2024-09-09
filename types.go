@@ -45,4 +45,5 @@ type Event struct {
 	IndexedParams []common.Hash
 	Data          []byte
 	Outputs       map[string]any
+	BlockNumber   uint64
 }

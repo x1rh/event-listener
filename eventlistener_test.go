@@ -37,6 +37,7 @@ func logHandler(appctx *AppCtx, c *Contract) LogHandleFunc {
 			l.Owner = HashToAddress(event.IndexedParams[0])
 			l.Token = HashToAddress(event.IndexedParams[1])
 			slog.Info("TokenCreated event", slog.Any("event", l))
+
 		default:
 			// do nothing
 		}
