@@ -45,5 +45,8 @@ type Event struct {
 	IndexedParams []common.Hash
 	Data          []byte
 	Outputs       map[string]any
-	BlockNumber   uint64
+
+	// todo: remove below fields
+	BlockNumber uint64
+	TxHash      common.Hash
 }

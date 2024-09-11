@@ -110,6 +110,7 @@ func (el *EventListener) Start() {
 						Data:          vLog.Data,
 						Outputs:       nil,
 						BlockNumber:   vLog.BlockNumber,
+						TxHash:        vLog.TxHash,
 					}
 					slog.Debug("event", slog.Any("event", event))
 
@@ -138,6 +139,7 @@ func (el *EventListener) Start() {
 						slog.Any("block number", vLog.BlockNumber),
 					)
 
+					// todo: prefer a transaction obj rather than a event obj
 					if err := el.Contract.Handle(ctx, eventInfo); err != nil {
 						slog.Error("fail to handle event", slog.Any("err", err))
 						continue

@@ -27,6 +27,7 @@ type AppCtx struct {
 
 func logHandler(appctx *AppCtx, c *Contract) LogHandleFunc {
 	return func(ctx context.Context, event *Event) error {
+		slog.Info("eventInfo", slog.Any("event", event))
 		switch event.Name {
 		case "TokenCreated":
 			var l LogTokenCreated
