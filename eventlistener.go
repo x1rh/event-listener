@@ -79,6 +79,15 @@ func (el *EventListener) Start() {
 			case <-ticker.C:
 				// todo: check if it filters in interval [FromBlock, ToBlock] or [FromBlock, ToBlock)
 				toBlock := big.NewInt(0).Add(el.Contract.BlockNumber, el.Contract.Step)
+				mostRecentBlockNumber, err := el.client.BlockNumber(ctx)
+				if err != nil {
+					slog.Error("failed to get newest block number", "err", err)
+					continue
+				}
+				if toBlock.Uint64() > mostRecentBlockNumber {
+					continue
+				}
+
 				query.FromBlock = el.Contract.BlockNumber
 				query.ToBlock = toBlock
 				slog.Info("handle block", slog.Any("fromBlock", query.FromBlock), slog.Any("toBlock", query.ToBlock))
