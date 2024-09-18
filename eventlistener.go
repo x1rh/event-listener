@@ -101,6 +101,7 @@ func (el *EventListener) Start() {
 					continue
 				}
 
+				ok := true
 				for _, vLog := range logList {
 					// TODO: only handle topic
 					// topic[0] is always a signature when a event is topic
@@ -110,7 +111,8 @@ func (el *EventListener) Start() {
 					event, err := el.Contract.Abi.EventByID(vLog.Topics[0])
 					if err != nil {
 						slog.Error("fail to get even", slog.Any("err", err))
-						continue
+						ok = false
+						break
 					}
 
 					eventInfo := &Event{
@@ -135,7 +137,8 @@ func (el *EventListener) Start() {
 						err = el.Contract.Abi.UnpackIntoMap(outputDataMap, event.Name, vLog.Data)
 						if err != nil {
 							slog.Error("fail to unpack", slog.Any("err", err))
-							continue
+							ok = false
+							break
 						}
 						eventInfo.Outputs = outputDataMap
 					}
@@ -151,10 +154,13 @@ func (el *EventListener) Start() {
 					// todo: prefer a transaction obj rather than a event obj
 					if err := el.Contract.Handle(ctx, eventInfo); err != nil {
 						slog.Error("fail to handle event", slog.Any("err", err))
-						continue
+						ok = false
+						break
 					}
 				}
-				el.Contract.BlockNumber = toBlock // todo: check it
+				if ok {
+					el.Contract.BlockNumber = toBlock // todo: check it
+				}
 			}
 		}
 	}()
