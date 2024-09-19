@@ -164,7 +164,7 @@ func (el *EventListener) Start() {
 					}
 				}
 				if ok {
-					el.Contract.BlockNumber = toBlock // todo: check it
+					el.Contract.BlockNumber = big.NewInt(0).Add(toBlock, big.NewInt(1))
 				}
 			}
 		}
