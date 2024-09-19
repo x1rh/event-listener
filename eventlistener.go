@@ -85,11 +85,16 @@ func (el *EventListener) Start() {
 					continue
 				}
 				if toBlock.Uint64() > mostRecentBlockNumber {
-					continue
+					toBlock = big.NewInt(int64(mostRecentBlockNumber))
 				}
 
 				query.FromBlock = el.Contract.BlockNumber
 				query.ToBlock = toBlock
+
+				if query.FromBlock.Cmp(query.ToBlock) > 0 {
+					continue
+				}
+
 				slog.Info("handle block", slog.Any("fromBlock", query.FromBlock), slog.Any("toBlock", query.ToBlock))
 
 				logList, err := el.client.FilterLogs(ctx, query)
