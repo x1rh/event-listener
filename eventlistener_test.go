@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 	"github.com/x1rh/event-listener/logger"
@@ -25,8 +26,8 @@ type AppCtx struct {
 	// db connection
 }
 
-func logHandler(appctx *AppCtx, c *Contract) LogHandleFunc {
-	return func(ctx context.Context, event *Event) error {
+func logEventHandleFunc(appctx *AppCtx, c *Contract) LogEventHandleFunc {
+	return func(ctx context.Context, txLog *types.Log, event *Event) error {
 		slog.Info("eventInfo", slog.Any("event", event))
 		switch event.Name {
 		case "TokenCreated":
@@ -66,7 +67,7 @@ func NewTokenFactoryEventListener() (*EventListener, error) {
 	if err != nil {
 		panic(err)
 	}
-	tokenFactory.SetLogHandler(logHandler(&AppCtx{}, tokenFactory))
+	// tokenFactory.SetLogHandler(logHandler(&AppCtx{}, tokenFactory))
 
 	el, err := New(
 		c,
@@ -76,6 +77,8 @@ func NewTokenFactoryEventListener() (*EventListener, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to new an EventListener object")
 	}
+
+	tokenFactory.SetLogHandler(LogHandlerOnlyTopic(el, logEventHandleFunc(&AppCtx{}, tokenFactory)))
 
 	return el, nil
 }

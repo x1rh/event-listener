@@ -107,57 +107,8 @@ func (el *EventListener) Start() {
 				}
 
 				ok := true
-				for _, vLog := range logList {
-					// TODO: only handle topic
-					// topic[0] is always a signature when a event is topic
-					eventSig := vLog.Topics[0]
-					el.Contract.Abi.EventByID(eventSig)
-
-					event, err := el.Contract.Abi.EventByID(vLog.Topics[0])
-					if err != nil {
-						slog.Error("fail to get even", slog.Any("err", err))
-						ok = false
-						break
-					}
-
-					eventInfo := &Event{
-						Name:          event.Name,
-						IndexedParams: make([]common.Hash, len(vLog.Topics)-1),
-						Data:          vLog.Data,
-						Outputs:       nil,
-						BlockNumber:   vLog.BlockNumber,
-						TxHash:        vLog.TxHash,
-					}
-					slog.Debug("event", slog.Any("event", event))
-
-					// topic[1:] is other indexed params in event
-					if len(vLog.Topics) > 1 {
-						for i, param := range vLog.Topics[1:] {
-							eventInfo.IndexedParams[i] = param
-							slog.Debug("", event.Inputs[i].Name, common.HexToAddress(param.Hex()))
-						}
-					}
-					if len(vLog.Data) > 0 {
-						outputDataMap := make(map[string]interface{})
-						err = el.Contract.Abi.UnpackIntoMap(outputDataMap, event.Name, vLog.Data)
-						if err != nil {
-							slog.Error("fail to unpack", slog.Any("err", err))
-							ok = false
-							break
-						}
-						eventInfo.Outputs = outputDataMap
-					}
-
-					slog.Debug(
-						"hanle",
-						slog.String("chainName", el.Config.ChainName),
-						slog.String("contractName", el.Contract.Name),
-						slog.String("ContractAddress", el.Contract.Address),
-						slog.Any("block number", vLog.BlockNumber),
-					)
-
-					// todo: prefer a transaction obj rather than a event obj
-					if err := el.Contract.Handle(ctx, eventInfo); err != nil {
+				for _, txLog := range logList {
+					if err := el.Contract.Handle(ctx, &txLog); err != nil {
 						slog.Error("fail to handle event", slog.Any("err", err))
 						ok = false
 						break

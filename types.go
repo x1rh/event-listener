@@ -47,6 +47,6 @@ type Event struct {
 	Outputs       map[string]any
 
 	// todo: remove below fields
-	BlockNumber uint64
-	TxHash      common.Hash
+	// BlockNumber uint64
+	// TxHash      common.Hash
 }
