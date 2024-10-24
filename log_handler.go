@@ -16,7 +16,6 @@ func LogHandlerOnlyTopic(el *EventListener, eventHandlers ...LogEventHandleFunc)
 		eventSignature := txLog.Topics[0]
 		event, err := el.Contract.Abi.EventByID(eventSignature)
 		if err != nil {
-			// slog.Error("fail to get even", slog.Any("err", err))
 			return errors.Wrap(err, "fail to get event")
 		}
 
@@ -25,8 +24,6 @@ func LogHandlerOnlyTopic(el *EventListener, eventHandlers ...LogEventHandleFunc)
 			IndexedParams: make([]common.Hash, len(txLog.Topics)-1),
 			Data:          txLog.Data,
 			Outputs:       nil,
-			// BlockNumber:   txLog.BlockNumber,
-			// TxHash:        txLog.TxHash,
 		}
 		slog.Debug("event", slog.Any("event", event))
 
@@ -41,7 +38,6 @@ func LogHandlerOnlyTopic(el *EventListener, eventHandlers ...LogEventHandleFunc)
 			outputDataMap := make(map[string]interface{})
 			err = el.Contract.Abi.UnpackIntoMap(outputDataMap, event.Name, txLog.Data)
 			if err != nil {
-				// slog.Error("fail to unpack", slog.Any("err", err))
 				return errors.Wrap(err, "fail to unpack")
 			}
 			eventInfo.Outputs = outputDataMap

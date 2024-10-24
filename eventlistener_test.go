@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
-	"github.com/x1rh/event-listener/logger"
+	"github.com/x1rh/logger"
 )
 
 // LogTokenCreated signature: TokenCreated(address,address,uint8,uint96,uint256)
@@ -28,6 +28,9 @@ type AppCtx struct {
 
 func logEventHandleFunc(appctx *AppCtx, c *Contract) LogEventHandleFunc {
 	return func(ctx context.Context, txLog *types.Log, event *Event) error {
+		// use appctx do something
+		_ = appctx
+
 		slog.Info("eventInfo", slog.Any("event", event))
 		switch event.Name {
 		case "TokenCreated":
@@ -67,18 +70,19 @@ func NewTokenFactoryEventListener() (*EventListener, error) {
 	if err != nil {
 		panic(err)
 	}
-	// tokenFactory.SetLogHandler(logHandler(&AppCtx{}, tokenFactory))
 
 	el, err := New(
 		c,
 		WithClient(client),
-		WithContract(*tokenFactory),
+		WithContract(tokenFactory),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to new an EventListener object")
 	}
 
-	tokenFactory.SetLogHandler(LogHandlerOnlyTopic(el, logEventHandleFunc(&AppCtx{}, tokenFactory)))
+	eventHandler := logEventHandleFunc(&AppCtx{}, tokenFactory)
+	logHandler := LogHandlerOnlyTopic(el, eventHandler)
+	tokenFactory.SetLogHandler(logHandler)
 
 	return el, nil
 }

@@ -24,8 +24,8 @@ func WithClient(client *ethclient.Client) Option {
 	}
 }
 
-func WithContract(c Contract) Option {
+func WithContract(c *Contract) Option {
 	return func(opts *EventListenerOptions) {
-		opts.Contract = &c
+		opts.Contract = c
 	}
 }

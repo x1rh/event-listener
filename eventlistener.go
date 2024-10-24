@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/x1rh/event-listener/logger"
+	_ "github.com/x1rh/logger"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
