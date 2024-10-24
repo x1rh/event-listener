@@ -1,4 +1,4 @@
-module github.com/x1rh/event-listener
+module github.com/x1rh/event-listener/v1
 
 go 1.21.4
 
