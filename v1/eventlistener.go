@@ -2,9 +2,8 @@ package eventlistener
 
 import (
 	"context"
-	"errors"
+	"github.com/pkg/errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"math/big"
 	"os"
@@ -108,7 +107,14 @@ func (el *EventListener) Start() {
 
 				ok := true
 				for _, txLog := range logList {
-					if err := el.Contract.Handle(ctx, &txLog); err != nil {
+					parsedLog, err := el.ParseLog(ctx, &txLog)
+					if err != nil {
+						slog.Error("fail to parse log", slog.Any("err", err))
+						ok = false
+						break
+					}
+
+					if err := el.Contract.Handle(ctx, parsedLog); err != nil {
 						slog.Error("fail to handle event", slog.Any("err", err))
 						ok = false
 						break
@@ -125,13 +131,68 @@ func (el *EventListener) Start() {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	<-signalChan
-	log.Println("received shutdown signal")
+	slog.Info("received shutdown signal")
 	cancel()
 	el.Stop()
-
-	log.Println("All goroutines have finished, exiting main function")
+	slog.Info("exit")
 }
+
+func (el *EventListener) ParseLog(ctx context.Context, _log *types.Log) (*ParsedLog, error) {
+	pl := &ParsedLog{
+		Log:   _log,
+		Event: nil,
+	}
+
+	if len(_log.Topics) == 0 {
+		return pl, nil 
+	}
+
+	// topic[0] is always a signature when a event is topic
+	eventSignature := _log.Topics[0]
+	event, err := el.Contract.Abi.EventByID(eventSignature)
+	if err != nil {
+		slog.Debug("fail to get event", slog.Any("topics[0]", eventSignature))
+		return pl, nil 
+	}
+
+	eventInfo := &Event{
+		Name:          event.Name,
+		IndexedParams: make([]common.Hash, len(_log.Topics)-1),
+		Data:  	       _log.Data,
+		Outputs:       nil,
+	}
+
+	// topic[1:] is other indexed params in event
+	if len(_log.Topics) > 1 {
+		for i, param := range _log.Topics[1:] {
+			eventInfo.IndexedParams[i] = param
+			slog.Debug("", event.Inputs[i].Name, common.HexToAddress(param.Hex()))
+		}
+	}
+	if len(_log.Data) > 0 {
+		outputDataMap := make(map[string]interface{})
+		err = el.Contract.Abi.UnpackIntoMap(outputDataMap, event.Name, _log.Data)
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to unpack")
+		}
+		eventInfo.Outputs = outputDataMap
+	}
+
+	slog.Debug(
+		"hanle",
+		slog.String("chainName", el.Config.ChainName),
+		slog.String("contractName", el.Contract.Name),
+		slog.String("ContractAddress", el.Contract.Address),
+		slog.Any("block number", _log.BlockNumber),
+		slog.Any("event", eventInfo),
+	)
+
+	pl.Event = eventInfo
+	return pl, nil 
+}
+
 
 func (el *EventListener) Stop() {
-
+	
 }
+

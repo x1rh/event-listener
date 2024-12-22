@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 )
 
@@ -15,8 +14,7 @@ type EventData struct {
 	Inputs []abi.Argument
 }
 
-type LogHandleFunc func(ctx context.Context, txLog *types.Log) error
-type LogEventHandleFunc func(ctx context.Context, txLog *types.Log, event *Event) error
+type LogHandleFunc func(ctx context.Context, l *ParsedLog) error
 
 type Contract struct {
 	Name    string
