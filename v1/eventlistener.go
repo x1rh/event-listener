@@ -24,7 +24,6 @@ type EventListener struct {
 
 	Config   ChainConfig
 	Contract *Contract
-	logChan  chan types.Log
 
 	opts *EventListenerOptions
 }
@@ -52,7 +51,6 @@ func New(c ChainConfig, options ...Option) (*EventListener, error) {
 	el := &EventListener{
 		Config:  c,
 		client:  client,
-		logChan: make(chan types.Log, 256),
 		opts:    opts,
 	}
 
