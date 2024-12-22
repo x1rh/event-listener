@@ -14,13 +14,17 @@ type Option func(*EventListenerOptions)
 
 func WithURL(url string) Option {
 	return func(opts *EventListenerOptions) {
-		opts.URL = url
+		if url != "" {
+			opts.URL = url
+		}
 	}
 }
 
 func WithClient(client *ethclient.Client) Option {
 	return func(opts *EventListenerOptions) {
-		opts.Client = client
+		if client != nil {
+			opts.Client = client
+		}
 	}
 }
 
