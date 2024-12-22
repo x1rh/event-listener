@@ -1,7 +1,7 @@
 package eventlistener
 
 type ChainConfig struct {
-	ChainId   int
-	ChainName string
-	URL       string
+	ChainId   int    `json:"chainId"`
+	ChainName string `json:"chainName"`
+	URL       string `json:"url"`
 }
